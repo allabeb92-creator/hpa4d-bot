@@ -93,7 +93,6 @@ class TotoDatabase:
             return last_two[0]
         return None
 
-    # ========== PORTFOLIO ==========
     async def record_bet(self, session, bet_amount, win_amount, result_number, profit):
         if not self.conn_pool:
             return
@@ -137,7 +136,6 @@ class TotoDatabase:
                     break
             return streak
 
-    # ========== DYNAMIC PREDICTION ==========
     async def get_dynamic_prediction(self, slot):
         lasts = await self.get_last_n(slot, 4)
         if len(lasts) < 2:
@@ -190,7 +188,6 @@ def get_neighbors(num):
             neighbors.add(int(n))
     return list(neighbors)
 
-# ========== SMART BIJI FILTER ==========
 def smart_filter_biji(numbers, prev_num):
     if not numbers or prev_num is None:
         return numbers
@@ -208,7 +205,6 @@ def smart_filter_biji(numbers, prev_num):
             secondary.append(n)
     return priority + secondary
 
-# ========== LCG DETECTOR ==========
 def egcd(a, b):
     if a == 0:
         return (b, 0, 1)
@@ -241,7 +237,6 @@ def crack_lcg(seq):
     next_val = (a * X4 + c) % 10000
     return {'a': a, 'c': c, 'next': next_val, 'method': 'inverse'}
 
-# ========== BBFS GENERATOR ==========
 def generate_bbfs(base_numbers, target_count=1000):
     result = OrderedDict()
     for num in base_numbers[:20]:
@@ -263,12 +258,11 @@ def generate_bbfs(base_numbers, target_count=1000):
     for num in list(result.keys())[:50]:
         mirror = int(str(num).zfill(4)[::-1])
         result[mirror] = True
-        mistik_map = {0: 1, 1: 0, 2: 3, 3: 2, 4: 5, 5: 4, 6: 7, 7: 6, 8: 9, 9: 8}
+        mistik_map = {0:1,1:0,2:3,3:2,4:5,5:4,6:7,7:6,8:9,9:8}
         mistik = int(''.join(str(mistik_map[int(d)]) for d in str(num).zfill(4)))
         result[mistik] = True
     return [str(n).zfill(4) for n in list(result.keys())[:target_count]]
 
-# ========== ENTROPY ==========
 def calculate_entropy(numbers):
     if not numbers:
         return 13.29
@@ -278,7 +272,6 @@ def calculate_entropy(numbers):
     probs = [f / len(numbers) for f in freq.values()]
     return -sum(p * math.log2(p) for p in probs)
 
-# ========== KELLY CRITERION ==========
 def kelly_criterion(win_prob, odds=3000):
     b = odds
     p = win_prob
@@ -286,7 +279,6 @@ def kelly_criterion(win_prob, odds=3000):
     f = (b * p - q) / b
     return max(0, f)
 
-# ========== VOID HUNTER ==========
 async def get_void_numbers(core_digits, count=50):
     all_nums = await db.get_all_numbers()
     freq = defaultdict(int)
@@ -332,29 +324,44 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status - 📁 status database"
     )
 
-# ========== BULK INPUT (FITUR BARU) ==========
+# ========== BULK INPUT (FIX, TERIMA /input ATAU input) ==========
 async def input_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
+    
+    # Hapus awalan "/input" atau "input" (case insensitive)
     if text.lower().startswith('/input'):
         text = text[6:].strip()
+    elif text.lower().startswith('input'):
+        text = text[5:].strip()
+    
+    # Split berdasarkan baris baru
     lines = text.split('\n')
     commands = []
+    
     for line in lines:
         line = line.strip()
         if not line:
             continue
+        # Split berdasarkan koma
         parts = line.split(',')
         for part in parts:
             part = part.strip()
             if not part:
                 continue
             tokens = part.split()
-            if len(tokens) == 2:
-                slot, num_str = tokens
+            # Format yang valid: "16:00 3437" (2 token) atau "/input 16:00 3437" (3 token)
+            # Jika 3 token dan token[0] adalah "input" atau "/input", ambil dua token terakhir
+            if len(tokens) == 3 and tokens[0].lower() in ('input', '/input'):
+                slot, num_str = tokens[1], tokens[2]
                 commands.append((slot, num_str))
+            elif len(tokens) == 2:
+                slot, num_str = tokens[0], tokens[1]
+                commands.append((slot, num_str))
+            # else: format salah, skip
     if not commands:
         await update.message.reply_text("❌ Format salah. Gunakan: /input 16:00 1234")
         return
+    
     results = []
     for slot, num_str in commands:
         try:
@@ -368,8 +375,10 @@ async def input_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results.append(f"⚠️ {slot}: '{num_str}' bukan angka 4 digit")
         except Exception as e:
             results.append(f"⚠️ {slot}: {str(e)}")
+    
     await update.message.reply_text("\n".join(results))
 
+# ========== PREDIKSI & BBFS ==========
 async def prediksi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         slot = context.args[0]
