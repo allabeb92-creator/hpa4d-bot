@@ -974,15 +974,14 @@ async def doktrin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg)
 
-# ========== INISIALISASI ASYNC (HANYA SEKALI) ==========
+# ========== INISIALISASI ASYNC ==========
 async def async_init():
     """Inisialisasi database (hanya sekali)"""
     await db.init_pool()
     print("✅ Database initialized")
 
-# ========== MAIN SYNCHRONOUS (TIDAK ADA KONFLIK EVENT LOOP) ==========
+# ========== MAIN SYNCHRONOUS DENGAN EVENT LOOP MANUAL ==========
 def main():
-    """Entry point synchronous – tidak ada konflik event loop"""
     # 1. Inisialisasi database (async → sync via asyncio.run)
     asyncio.run(async_init())
     
@@ -995,7 +994,7 @@ def main():
     # 3. Bangun aplikasi Telegram
     app = Application.builder().token(TOKEN).build()
     
-    # 4. Daftarkan semua handler
+    # 4. Daftarkan semua handler (salin dari kode Anda sebelumnya)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("input", input_result))
     app.add_handler(CommandHandler("prediksi", prediksi))
@@ -1015,9 +1014,19 @@ def main():
     app.add_handler(CommandHandler("yield", yield_command))
     app.add_handler(CommandHandler("doktrin", doktrin))
     
-    # 5. Jalankan bot (blocking, pakai loop internal – TIDAK NESTED)
+    # 5. Buat event loop baru dan SET sebagai loop saat ini
     print("✅ Starting bot with polling...")
-    app.run_polling()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        # Jalankan bot – run_polling() akan menggunakan loop yang sudah kita set
+        app.run_polling()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.close()
+        print("🛑 Bot stopped")
 
 if __name__ == "__main__":
     main()
