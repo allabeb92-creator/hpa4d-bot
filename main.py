@@ -88,13 +88,13 @@ class TotoDatabase:
             return count
 
     async def get_consecutive_repeats(self, slot):
-        """Deteksi apakah angka yang sama muncul 2x berturut-turut (Boomerang)"""
+        """Deteksi angka yang sama 2x berturut-turut (Boomerang)"""
         last_two = await self.get_last_n(slot, 2)
         if len(last_two) == 2 and last_two[0] == last_two[1]:
             return last_two[0]
         return None
 
-    # ========== PORTFOLIO (YANKEE) ==========
+    # ========== PORTFOLIO ==========
     async def record_bet(self, session, bet_amount, win_amount, result_number, profit):
         if not self.conn_pool:
             return
@@ -266,7 +266,7 @@ def generate_bbfs(base_numbers, target_count=1000):
     for num in list(result.keys())[:50]:
         mirror = int(str(num).zfill(4)[::-1])
         result[mirror] = True
-        mistik_map = {0:1,1:0,2:3,3:2,4:5,5:4,6:7,7:6,8:9,9:8}
+        mistik_map = {0: 1, 1: 0, 2: 3, 3: 2, 4: 5, 5: 4, 6: 7, 7: 6, 8: 9, 9: 8}
         mistik = int(''.join(str(mistik_map[int(d)]) for d in str(num).zfill(4)))
         result[mistik] = True
     return [str(n).zfill(4) for n in list(result.keys())[:target_count]]
@@ -291,26 +291,20 @@ def kelly_criterion(win_prob, odds=3000):
 
 # ========== VOID HUNTER (ZULU-V) ==========
 async def get_void_numbers(core_digits, count=50):
-    """
-    Menghasilkan angka-angka 'Void' – digit yang TIDAK ada di core_digits,
-    dicampur dengan digit random, untuk menutup celah musuh alami.
-    """
     all_nums = await db.get_all_numbers()
     freq = defaultdict(int)
     for num in all_nums:
         freq[num] += 1
-    # Ambil angka yang jarang muncul dan tidak mengandung core_digits
     void_candidates = []
     for num, f in freq.items():
         s = str(num).zfill(4)
         if any(int(d) in core_digits for d in s):
             continue
         void_candidates.append((num, f))
-    void_candidates.sort(key=lambda x: x[1])  # yang paling dingin dulu
+    void_candidates.sort(key=lambda x: x[1])
     result = []
     for num, _ in void_candidates[:count]:
         result.append(str(num).zfill(4))
-    # Tambah angka random jika kurang
     while len(result) < count:
         result.append(f"{random.randint(0,9999):04d}")
     return result
@@ -345,7 +339,7 @@ async def input_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         _, slot, num = update.message.text.split()
         num = int(num)
-        if slot not in ['13:00','16:00','19:00','22:00','23:00','00:01']:
+        if slot not in ['13:00', '16:00', '19:00', '22:00', '23:00', '00:01']:
             await update.message.reply_text("❌ Slot tidak valid")
             return
         await db.save_result(slot, num)
@@ -404,14 +398,13 @@ async def bbfs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last = await db.get_last_n(slot, 1)
         if last:
             bbfs_list = smart_filter_biji(bbfs_list, last[0])
-        # PATCH NOVEMBER: jika ada angka yang muncul 2x berturut-turut, tambah neighbor dengan bobot tinggi
         boomerang = await db.get_consecutive_repeats(slot)
         if boomerang:
             neighbors = get_neighbors(boomerang)
             for nb in neighbors:
                 nb_str = f"{nb:04d}"
                 if nb_str not in bbfs_list:
-                    bbfs_list.insert(0, nb_str)  # prioritas tinggi
+                    bbfs_list.insert(0, nb_str)
         msg = f"🔥 BBFS HOT {slot} ({len(bbfs_list)} ANGKA)\n" + "*".join(bbfs_list[:500])
         await update.message.reply_text(msg[:4096])
         if len(bbfs_list) > 500:
@@ -465,7 +458,6 @@ async def bbfs_balanced(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last = await db.get_last_n(slot, 1)
         if last:
             bbfs_list = smart_filter_biji(bbfs_list, last[0])
-        # PATCH NOVEMBER: boomerang neighbor
         boomerang = await db.get_consecutive_repeats(slot)
         if boomerang:
             neighbors = get_neighbors(boomerang)
@@ -473,7 +465,6 @@ async def bbfs_balanced(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 nb_str = f"{nb:04d}"
                 if nb_str not in bbfs_list:
                     bbfs_list.insert(0, nb_str)
-        # PATCH ZULU: void hunter (5% dari total)
         void_count = max(1, count // 20)
         void_numbers = await get_void_numbers([], void_count)
         bbfs_list.extend(void_numbers)
@@ -541,7 +532,6 @@ async def bbfs_tritunggal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last = await db.get_last_n(slot, 1)
         if last:
             bbfs_list = smart_filter_biji(bbfs_list, last[0])
-        # PATCH NOVEMBER
         boomerang = await db.get_consecutive_repeats(slot)
         if boomerang:
             neighbors = get_neighbors(boomerang)
@@ -549,7 +539,6 @@ async def bbfs_tritunggal(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 nb_str = f"{nb:04d}"
                 if nb_str not in bbfs_list:
                     bbfs_list.insert(0, nb_str)
-        # PATCH ZULU: void hunter
         void_count = 50
         void_numbers = await get_void_numbers(core_digits, void_count)
         bbfs_list.extend(void_numbers)
@@ -598,11 +587,9 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_1900 = await db.get_last_n('19:00', 1)
         last_2200 = await db.get_last_n('22:00', 1)
         last_2300 = await db.get_last_n('23:00', 1)
-        # CHRONOS + ECHO + MIKE + INDIA + COUNTER LOGIC
         is_siang = slot in ['13:00','16:00']
         is_malam = slot in ['19:00','22:00','23:00']
         if is_siang:
-            # SIANG: FOLLOW (Sticky, Twin)
             if last_this:
                 prev = str(last_this[0]).zfill(4)
                 digit_pool.extend([int(prev[1]), int(prev[3]), int(prev[0]), int(prev[2])])
@@ -616,7 +603,6 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 s1600 = str(last_1600[0]).zfill(4)
                 digit_pool.extend([int(d) for d in s1600])
         elif is_malam:
-            # MALAM: COUNTER (Index, Mirror, Neighbor dari lawan)
             index_map = {0:5,1:6,2:7,3:8,4:9,5:0,6:1,7:2,8:3,9:4}
             if last_this:
                 prev = str(last_this[0]).zfill(4)
@@ -624,12 +610,10 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 kop = int(prev[1])
                 digit_pool.append(index_map[as_])
                 digit_pool.append(index_map[kop])
-                # Counter: jika AS genap kecil, rebound; jika AS ganjil besar, mirror ke kecil
                 if as_ in [0,2,4]:
-                    digit_pool.append(index_map[as_])  # sudah
+                    digit_pool.append(index_map[as_])
                 elif as_ in [5,7,9]:
-                    digit_pool.append(index_map[as_])  # balik ke kecil
-            # Index Silang (Kop Siang jadi Ekor Malam)
+                    digit_pool.append(index_map[as_])
             if slot == '19:00' and last_1600:
                 s1600 = str(last_1600[0]).zfill(4)
                 digit_pool.append(int(s1600[1]))
@@ -639,7 +623,6 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif slot == '23:00' and last_2200:
                 s2200 = str(last_2200[0]).zfill(4)
                 digit_pool.append(int(s2200[1]))
-            # Mistik & Mirror
             if last_this:
                 prev = str(last_this[0]).zfill(4)
                 rev = prev[::-1]
@@ -648,19 +631,16 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 mistik = ''.join(str(mistik_map[int(d)]) for d in prev)
                 digit_pool.extend([int(d) for d in mistik])
         elif slot == '00:01':
-            # RESET (ROMEO, SIERRA, TANGO) - PROACTIVE
             if len(last_this) >= 2:
                 a, b = last_this[0], last_this[1]
-                # Proactive: jika 2 draw sudah menunjukkan pola naik/turun, siapkan 0/1
                 if a > b:
-                    digit_pool.extend([0,1])  # antisipasi reset turun
+                    digit_pool.extend([0,1])
                 elif a < b:
-                    digit_pool.extend([0,1])  # antisipasi reset naik
+                    digit_pool.extend([0,1])
             digit_pool.extend([0,1])
             if last_this:
                 prev = str(last_this[0]).zfill(4)
                 digit_pool.extend([int(prev[1]), int(prev[3])])
-        # GOLF
         if global_digits:
             digit_pool.extend([int(d) for d in global_digits])
         digit_pool = list(set(digit_pool))
@@ -681,7 +661,6 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last = await db.get_last_n(slot, 1)
         if last:
             bbfs_list = smart_filter_biji(bbfs_list, last[0])
-        # PATCH NOVEMBER
         boomerang = await db.get_consecutive_repeats(slot)
         if boomerang:
             neighbors = get_neighbors(boomerang)
@@ -689,14 +668,14 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 nb_str = f"{nb:04d}"
                 if nb_str not in bbfs_list:
                     bbfs_list.insert(0, nb_str)
-        # PATCH ZULU: void hunter (5%)
         void_count = max(1, count // 20)
         void_numbers = await get_void_numbers(core_digits, void_count)
         bbfs_list.extend(void_numbers)
         zona = "SIANG" if is_siang else "MALAM" if is_malam else "RESET"
+        mode = "FOLLOW" if is_siang else "COUNTER" if is_malam else "PROACTIVE"
         msg = (
             f"⏰⏰⏰ BBFS ZONA WAKTU ({slot}) ⏰⏰⏰\n"
-            f"🧠 Mode: {zona} – {'FOLLOW' if is_siang else 'COUNTER' if is_malam else 'PROACTIVE'}\n"
+            f"🧠 Mode: {zona} – {mode}\n"
             f"🎲 Core: {''.join(map(str, core_digits))}\n"
             f"📦 Total: {len(bbfs_list)} angka\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
@@ -709,7 +688,6 @@ async def bbfs4(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
 async def killer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🔪 KILLER MODE – Eksekusi PAUS + AREA DAMAGE (PATCH KILO)"""
     try:
         if len(context.args) < 1:
             await update.message.reply_text("❌ Gunakan: /killer 23:00 12")
@@ -740,7 +718,6 @@ async def killer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         target_as = as_prev + 5
         base_numbers = []
-        # Line utama
         if global_digits:
             kop = global_digits[0] % 10
             kepala = global_digits[1] % 10 if len(global_digits) > 1 else 0
@@ -751,17 +728,15 @@ async def killer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for ekor in range(10):
                 angka = target_as * 1000 + 0 * 100 + 0 * 10 + ekor
                 base_numbers.append(angka)
-        # AREA DAMAGE: tambah 5 line dari AS tetangga (8 dan 0)
         for delta in [-1, 1]:
             neighbor_as = (target_as + delta) % 10
-            for ekor in range(5):  # hanya 5 ekor untuk cadangan
+            for ekor in range(5):
                 angka = neighbor_as * 1000 + 0 * 100 + 0 * 10 + ekor
                 base_numbers.append(angka)
         bbfs_list = [str(n).zfill(4) for n in base_numbers]
         last = await db.get_last_n(slot, 1)
         if last:
             bbfs_list = smart_filter_biji(bbfs_list, last[0])
-        # Catat penggunaan killer (untuk ego penalty)
         context.bot_data['last_killer_time'] = datetime.now()
         streak = await db.get_killer_fail_streak()
         msg = (
@@ -886,7 +861,7 @@ async def generate_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import networkx as nx
         import plotly.graph_objects as go
     except ImportError:
-        await update.message.reply_text("❌ Fitur graph membutuhkan networkx dan plotly")
+        await update.message.reply_text("❌ Fitur graph membutuhkan networkx dan plotly, pastikan sudah terinstall")
         return
     all_nums = await db.get_all_numbers()
     freq = {}
@@ -925,16 +900,16 @@ async def generate_graph(update: Update, context: ContextTypes.DEFAULT_TYPE):
         node_trace['text'] += (f"{n:04d}<br>Freq: {G.nodes[n]['freq']}<br>Degree: {G.degree(n)}",)
     fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(
-                        title='HPA-4D Graph (Top 100)',
+                        title='HPA-4D Graph (Top 100 Numbers)',
                         showlegend=False,
                         hovermode='closest',
-                        xaxis=dict(showgrid=False,zeroline=False,showticklabels=False),
-                        yaxis=dict(showgrid=False,zeroline=False,showticklabels=False)))
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
     with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as f:
         fig.write_html(f.name)
         f.seek(0)
-        await update.message.reply_document(document=open(f.name,'rb'), filename='hpa4d_graph.html')
-    await update.message.reply_text("✅ Graph siap!")
+        await update.message.reply_document(document=open(f.name, 'rb'), filename='hpa4d_graph.html')
+    await update.message.reply_text("✅ Graph siap! Buka file HTML di browser.")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = await db.get_total_count()
@@ -999,14 +974,28 @@ async def doktrin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg)
 
-# ========== MAIN ==========
-async def main():
+# ========== INISIALISASI ASYNC (HANYA SEKALI) ==========
+async def async_init():
+    """Inisialisasi database (hanya sekali)"""
     await db.init_pool()
+    print("✅ Database initialized")
+
+# ========== MAIN SYNCHRONOUS (TIDAK ADA KONFLIK EVENT LOOP) ==========
+def main():
+    """Entry point synchronous – tidak ada konflik event loop"""
+    # 1. Inisialisasi database (async → sync via asyncio.run)
+    asyncio.run(async_init())
+    
+    # 2. Baca token
     TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
     if not TOKEN:
         print("❌ TELEGRAM_BOT_TOKEN tidak ditemukan")
         return
+    
+    # 3. Bangun aplikasi Telegram
     app = Application.builder().token(TOKEN).build()
+    
+    # 4. Daftarkan semua handler
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("input", input_result))
     app.add_handler(CommandHandler("prediksi", prediksi))
@@ -1025,17 +1014,10 @@ async def main():
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("yield", yield_command))
     app.add_handler(CommandHandler("doktrin", doktrin))
-    print("✅ HPA-4D v6.2 – KITAB HITAM EDITION DEPLOYED")
-    await app.run_polling()
+    
+    # 5. Jalankan bot (blocking, pakai loop internal – TIDAK NESTED)
+    print("✅ Starting bot with polling...")
+    app.run_polling()
 
 if __name__ == "__main__":
-    try:
-        # Coba dapatkan loop yang sedang berjalan
-        loop = asyncio.get_running_loop()
-        # Loop sudah berjalan → cukup buat task
-        loop.create_task(main())
-        # Jalankan loop forever (Railway akan mengelola)
-        loop.run_forever()
-    except RuntimeError:
-        # Tidak ada loop yang berjalan → buat baru
-        asyncio.run(main())
+    main()
