@@ -6,7 +6,7 @@ import random
 import tempfile
 from collections import OrderedDict, defaultdict
 from itertools import permutations
-from datetime import datetime, timedelta
+from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -88,7 +88,6 @@ class TotoDatabase:
             return count
 
     async def get_consecutive_repeats(self, slot):
-        """Deteksi angka yang sama 2x berturut-turut (Boomerang)"""
         last_two = await self.get_last_n(slot, 2)
         if len(last_two) == 2 and last_two[0] == last_two[1]:
             return last_two[0]
@@ -124,7 +123,6 @@ class TotoDatabase:
             return wins / total if total > 0 else 0.0
 
     async def get_killer_fail_streak(self):
-        """Catat streak kegagalan sniper"""
         if not self.conn_pool:
             return 0
         async with self.conn_pool.acquire() as conn:
@@ -180,7 +178,6 @@ def hamming_distance(a, b):
     return sum(c1 != c2 for c1, c2 in zip(sa, sb))
 
 def get_neighbors(num):
-    """Kembalikan angka-angka tetangga (±1) di setiap posisi"""
     s = str(num).zfill(4)
     neighbors = set()
     for i in range(4):
@@ -244,7 +241,7 @@ def crack_lcg(seq):
     next_val = (a * X4 + c) % 10000
     return {'a': a, 'c': c, 'next': next_val, 'method': 'inverse'}
 
-# ========== BBFS GENERATOR (BRAVO) ==========
+# ========== BBFS GENERATOR ==========
 def generate_bbfs(base_numbers, target_count=1000):
     result = OrderedDict()
     for num in base_numbers[:20]:
@@ -289,7 +286,7 @@ def kelly_criterion(win_prob, odds=3000):
     f = (b * p - q) / b
     return max(0, f)
 
-# ========== VOID HUNTER (ZULU-V) ==========
+# ========== VOID HUNTER ==========
 async def get_void_numbers(core_digits, count=50):
     all_nums = await db.get_all_numbers()
     freq = defaultdict(int)
@@ -335,17 +332,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status - 📁 status database"
     )
 
+# ========== BULK INPUT (FITUR BARU) ==========
 async def input_result(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        _, slot, num = update.message.text.split()
-        num = int(num)
-        if slot not in ['13:00', '16:00', '19:00', '22:00', '23:00', '00:01']:
-            await update.message.reply_text("❌ Slot tidak valid")
-            return
-        await db.save_result(slot, num)
-        await update.message.reply_text(f"✅ Result {slot} = {num:04d} tersimpan")
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ Error: {str(e)}")
+    text = update.message.text.strip()
+    if text.lower().startswith('/input'):
+        text = text[6:].strip()
+    lines = text.split('\n')
+    commands = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(',')
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            tokens = part.split()
+            if len(tokens) == 2:
+                slot, num_str = tokens
+                commands.append((slot, num_str))
+    if not commands:
+        await update.message.reply_text("❌ Format salah. Gunakan: /input 16:00 1234")
+        return
+    results = []
+    for slot, num_str in commands:
+        try:
+            num = int(num_str)
+            if slot not in ['13:00','16:00','19:00','22:00','23:00','00:01']:
+                results.append(f"❌ Slot {slot} tidak valid")
+                continue
+            await db.save_result(slot, num)
+            results.append(f"✅ {slot} = {num:04d} tersimpan")
+        except ValueError:
+            results.append(f"⚠️ {slot}: '{num_str}' bukan angka 4 digit")
+        except Exception as e:
+            results.append(f"⚠️ {slot}: {str(e)}")
+    await update.message.reply_text("\n".join(results))
 
 async def prediksi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -934,7 +957,6 @@ async def yield_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎯 Rekomendasi bet (modal 1000): {rec_bet}\n"
         f"{ego_penalty}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"Gunakan /record untuk mencatat hasil betting (belum diimplementasikan)."
     )
     await update.message.reply_text(msg)
 
@@ -976,25 +998,17 @@ async def doktrin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========== INISIALISASI ASYNC ==========
 async def async_init():
-    """Inisialisasi database (hanya sekali)"""
     await db.init_pool()
     print("✅ Database initialized")
 
-# ========== MAIN SYNCHRONOUS DENGAN EVENT LOOP MANUAL ==========
+# ========== MAIN (TANPA NESTED LOOP) ==========
 def main():
-    # 1. Inisialisasi database (async → sync via asyncio.run)
     asyncio.run(async_init())
-    
-    # 2. Baca token
     TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
     if not TOKEN:
         print("❌ TELEGRAM_BOT_TOKEN tidak ditemukan")
         return
-    
-    # 3. Bangun aplikasi Telegram
     app = Application.builder().token(TOKEN).build()
-    
-    # 4. Daftarkan semua handler (salin dari kode Anda sebelumnya)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("input", input_result))
     app.add_handler(CommandHandler("prediksi", prediksi))
@@ -1013,14 +1027,10 @@ def main():
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("yield", yield_command))
     app.add_handler(CommandHandler("doktrin", doktrin))
-    
-    # 5. Buat event loop baru dan SET sebagai loop saat ini
     print("✅ Starting bot with polling...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     try:
-        # Jalankan bot – run_polling() akan menggunakan loop yang sudah kita set
         app.run_polling()
     except KeyboardInterrupt:
         pass
