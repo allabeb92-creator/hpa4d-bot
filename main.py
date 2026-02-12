@@ -73,15 +73,17 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = await get_total_count()
     await update.message.reply_text(f"📊 Database PostgreSQL: {total} angka tersimpan")
 
-async def main():
-    await init_db()
+def main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(init_db())
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("input", input_result))
     app.add_handler(CommandHandler("prediksi", prediksi))
     app.add_handler(CommandHandler("status", status))
     print("✅ Bot started with PostgreSQL!")
-    await app.run_polling()
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
