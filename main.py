@@ -228,7 +228,68 @@ def generate_bbfs(base_numbers, target_count=1000):
         mistik = int(''.join(str(mistik_map[int(d)]) for d in str(num).zfill(4)))
         result[mistik] = True
     return [str(n).zfill(4) for n in list(result.keys())[:target_count]]
+# ========== BBFS BALANCED (HOT + COLD + RANDOM) ==========
+def generate_balanced_bbfs(base_numbers, target_count=1000, hot_ratio=0.7):
+    """
+    Generate BBFS dengan campuran:
+    - hot_ratio% dari base numbers (prediksi)
+    - sisanya dari angka dingin + random
+    """
+    result = OrderedDict()
+    
+    # 1. Ambil angka hot dari base numbers
+    hot_target = int(target_count * hot_ratio)
+    hot_list = generate_bbfs(base_numbers, hot_target)
+    for num in hot_list:
+        result[int(num)] = True
+    
+    # 2. Tambah angka cold & random sampai target
+    cold_pool = []
+    
+    # Ambil angka cold dari database (frekuensi terendah)
+    try:
+        # Ambil semua angka di slot 19:00 (atau slot umum)
+        all_nums = db.get_all_numbers_sync()  # kita buat synchronus wrapper
+        freq = {}
+        for num in all_nums:
+            freq[num] = freq.get(num, 0) + 1
+        # Urutkan dari yang paling jarang muncul
+        cold_pool = [n for n, _ in sorted(freq.items(), key=lambda x: x[1])[:200]]
+    except:
+        # Fallback: generate random angka
+        cold_pool = []
+    
+    # Tambah random digits generator untuk cover 0-9
+    import random
+    while len(result) < target_count:
+        # 70% dari cold pool (jika ada), 30% random murni
+        if cold_pool and random.random() < 0.7:
+            num = random.choice(cold_pool)
+        else:
+            # Generate angka dengan digit acak 0-9
+            num = random.randint(0, 9999)
+        
+        if num not in result:
+            result[num] = True
+            # Tambahkan varian mirror/mistik juga
+            if len(result) < target_count:
+                mirror = int(str(num).zfill(4)[::-1])
+                result[mirror] = True
+            if len(result) < target_count:
+                mistik_map = {0:1,1:0,2:3,3:2,4:5,5:4,6:7,7:6,8:9,9:8}
+                mistik = int(''.join(str(mistik_map[int(d)]) for d in str(num).zfill(4)))
+                result[mistik] = True
+    
+    return [str(n).zfill(4) for n in list(result.keys())[:target_count]]
 
+# Wrapper sinkron untuk akses database (karena generate_balanced_bbfs dipanggil dari fungsi async)
+# Taruh di luar kelas
+async def get_all_numbers_sync_wrapper():
+    return await db.get_all_numbers()
+
+# Kita akan panggil dari dalam fungsi, perlu sedikit trik
+# Tapi karena ini fungsi biasa, kita buat versi async dan panggil dengan loop
+# Alternatif: kita panggil langsung di handler
 # ========== ENTROPY ==========
 def calculate_entropy(numbers):
     if not numbers:
