@@ -1029,12 +1029,7 @@ async def main():
     await app.run_polling()
 
 if __name__ == "__main__":
-    # Buat event loop baru
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         pass
-    finally:
-        loop.close()
