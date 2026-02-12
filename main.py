@@ -1030,6 +1030,12 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Coba dapatkan loop yang sedang berjalan
+        loop = asyncio.get_running_loop()
+        # Loop sudah berjalan → cukup buat task
+        loop.create_task(main())
+        # Jalankan loop forever (Railway akan mengelola)
+        loop.run_forever()
+    except RuntimeError:
+        # Tidak ada loop yang berjalan → buat baru
         asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
